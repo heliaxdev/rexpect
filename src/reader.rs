@@ -159,13 +159,39 @@ impl NBReader {
             return Ok(());
         }
         while let Ok(from_channel) = self.reader.try_recv() {
+            use std::io::ErrorKind::*;
             match from_channel {
                 Ok(PipedChar::Char(c)) => self.buffer.push(c as char),
                 Ok(PipedChar::EOF) => self.eof = true,
                 // this is just from experience, e.g. "sleep 5" returns the other error which
                 // most probably means that there is no stdout stream at all -> send EOF
                 // this only happens on Linux, not on OSX
-                Err(PipeError::IO(ref err)) if err.kind() == io::ErrorKind::Other => {
+                // Work-around for https://github.com/philippkeller/rexpect/issues/38.
+                Err(PipeError::IO(ref err))
+                    if !matches!(
+                        err.kind(),
+                        AddrInUse
+                            | AddrNotAvailable
+                            | AlreadyExists
+                            | BrokenPipe
+                            | ConnectionAborted
+                            | ConnectionRefused
+                            | ConnectionReset
+                            | Interrupted
+                            | InvalidData
+                            | InvalidInput
+                            | NotConnected
+                            | NotFound
+                            | Other
+                            | OutOfMemory
+                            | PermissionDenied
+                            | TimedOut
+                            | UnexpectedEof
+                            | Unsupported
+                            | WouldBlock
+                            | WriteZero
+                    ) =>
+                {
                     self.eof = true
                 }
                 // discard other errors
